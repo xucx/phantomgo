@@ -9,7 +9,7 @@ package phantomgo
 * system.args[4] == userAgent
  */
 
-const getJs string = `
+const GETJS string = `
 	var system = require('system');
 	var page = require('webpage').create();
 	var url = system.args[1];
@@ -41,7 +41,7 @@ const getJs string = `
 * system.args[4] == userAgent
 * system.args[5] == postdata
  */
-const postJs string = `
+const POSTJS string = `
 	var system = require('system');
 	var page = require('webpage').create();
 	var url = system.args[1];

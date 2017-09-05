@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path"
 	"strings"
 	"time"
 )
@@ -23,7 +24,8 @@ type Phantomer interface {
 	SetProxy(string)
 	SetProxyType(string)
 	SetProxyAuth(string)
-	SetPhantomjsPath(string, string)
+	SetPhantomjsPath(string)
+	SetTmpPath(string)
 	Download(Request) (*http.Response, error)
 	Exec(string, ...string) (io.ReadCloser, error)
 }
@@ -32,6 +34,7 @@ type Phantom struct {
 	userAgent     string
 	pageEncode    string
 	phantomjsPath string
+	tmpPath       string
 	proxy         string
 	proxyType     string
 	proxyAuth     string
@@ -53,16 +56,17 @@ type WebrowseParam struct {
 
 func NewPhantom() Phantomer {
 	phantom := &Phantom{
-		userAgent:     "Mozilla/5.0+(compatible;+Baiduspider/2.0;++http://www.baidu.com/search/spider.html)",
+		userAgent:     "Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/45.0.2454.85 Safari/537.36",
 		pageEncode:    "utf-8",
-		phantomjsPath: GOPATH + "/src/github.com/k4s/phantomgo/phantomjs/phantomjs",
+		phantomjsPath: "phantomjs",
+		tmpPath:       "./tmp",
 	}
 	//if the javascript file is no exist,creat it
-	if !phantom.Exist(GET_JS_FILE_NAME) {
-		phantom.CreatJsFile("GET")
+	if !phantom.JsFileExist(GET_JS_FILE_NAME) {
+		phantom.CreatJsFile(GET_JS_FILE_NAME, GETJS)
 	}
-	if !phantom.Exist(POST_JS_FILE_NAME) {
-		phantom.CreatJsFile("POST")
+	if !phantom.JsFileExist(POST_JS_FILE_NAME) {
+		phantom.CreatJsFile(POST_JS_FILE_NAME, POSTJS)
 	}
 	return phantom
 }
@@ -148,11 +152,9 @@ func (self *Phantom) Open(openArgs ...string) (stdout io.ReadCloser, err error) 
 
 //exec javascript
 func (self *Phantom) Exec(js string, args ...string) (stdout io.ReadCloser, err error) {
-	file, _ := os.Create(DIY_JS_FILE_NAME)
-	file.WriteString(js)
-	file.Close()
+	file := self.CreatJsFile(DIY_JS_FILE_NAME, js)
 	var exeCommand []string
-	exeCommand = append(append(exeCommand, DIY_JS_FILE_NAME), args...)
+	exeCommand = append(append(exeCommand, file), args...)
 	cmd := exec.Command(self.phantomjsPath, exeCommand...)
 	stdout, err = cmd.StdoutPipe()
 	if err != nil {
@@ -193,33 +195,34 @@ func (self *Phantom) SetPageEncode(pageEncode string) {
 
 // 动态修改执行文件的Phantomjs.exe路径
 // set the phantomjs exec file
-func (self *Phantom) SetPhantomjsPath(name string, filepath string) {
+func (self *Phantom) SetPhantomjsPath(filepath string) {
 	self.phantomjsPath = filepath
+}
+
+func (self *Phantom) SetTmpPath(dirpath string) {
+	self.tmpPath = dirpath
 }
 
 //创建js临时文件
 //creat temp javascript file
-func (self *Phantom) CreatJsFile(jsfile string) {
-	if jsfile == "GET" {
-		js := getJs
-		file, _ := os.Create(GET_JS_FILE_NAME)
-		file.WriteString(js)
-	} else if jsfile == "POST" {
-		js := postJs
-		file, _ := os.Create(POST_JS_FILE_NAME)
-		file.WriteString(js)
-	}
+func (self *Phantom) CreatJsFile(file string, content string) string {
+	os.MkdirAll(self.tmpPath, os.ModePerm)
 
+	fileName := path.Join(self.tmpPath, file)
+	f, _ := os.Create(fileName)
+	f.WriteString(content)
+
+	return fileName
 }
 
 //判断js临时文件是否存在
 //Is js file exist
-func (self *Phantom) Exist(filename string) bool {
-	_, err := os.Stat(filename)
+func (self *Phantom) JsFileExist(filename string) bool {
+	_, err := os.Stat(path.Join(self.tmpPath, filename))
 	return err == nil || os.IsExist(err)
 }
 
 //销毁js临时文件
 func (self *Phantom) DestroyJsFile(filename string) {
-	os.Remove(filename)
+	os.Remove(path.Join(self.tmpPath, filename))
 }
